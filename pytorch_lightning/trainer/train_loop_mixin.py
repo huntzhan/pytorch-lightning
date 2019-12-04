@@ -340,9 +340,16 @@ class TrainerTrainLoopMixin(object):
                     callback_metrics = output[3]
                     self.hiddens = output[4]
 
+                    # get the ratio of samples contributing non-zero loss.
+                    batch_loss_efficiency_ratio = callback_metrics.get('batch_loss_efficiency_ratio', 1.0)
+                    self.opt_idx_to_accumulate_grad_batches[opt_idx] += batch_loss_efficiency_ratio
+
+                    # get the re-weight factor for the loss accumulation.
+                    closure_loss_weight = batch_loss_efficiency_ratio / self.accumulate_grad_batches
+
                     # accumulate loss
                     # (if accumulate_grad_batches = 1 no effect)
-                    closure_loss = closure_loss / self.accumulate_grad_batches
+                    closure_loss = closure_loss * closure_loss_weight
 
                     # backward pass
                     model_ref = self.get_model()
@@ -373,7 +380,9 @@ class TrainerTrainLoopMixin(object):
                 self.batch_loss_value += loss.item()
 
                 # gradient update with accumulated gradients
-                if (self.batch_nb + 1) % self.accumulate_grad_batches == 0:
+                if self.opt_idx_to_accumulate_grad_batches[opt_idx] >= self.accumulate_grad_batches:
+                    # reset the counter.
+                    self.opt_idx_to_accumulate_grad_batches[opt_idx] = 0.0
 
                     # track gradient norms when requested
                     if batch_nb % self.row_log_interval == 0:

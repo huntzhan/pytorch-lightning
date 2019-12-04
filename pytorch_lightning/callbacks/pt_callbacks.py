@@ -356,6 +356,10 @@ class GradientAccumulationScheduler(Callback):
         self.epochs = sorted(scheduling.keys())
 
     def on_epoch_begin(self, epoch, trainer):
+        trainer.opt_idx_to_accumulate_grad_batches = {}
+        for opt_idx, _ in enumerate(trainer.optimizers):
+            trainer.opt_idx_to_accumulate_grad_batches[opt_idx] = 0.0
+
         epoch += 1  # indexing epochs from 1
         for i in reversed(range(len(self.epochs))):
             if epoch >= self.epochs[i]:
